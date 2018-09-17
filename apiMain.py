@@ -68,13 +68,13 @@ def get_posts(forum_id, thread_id):
     if forumsSQL == []:
         response = make_response("ERROR: FORUM NOT FOUND")
         response.status_code = 404
-        return reponse
+        return response
     cur.execute("SELECT * FROM threads WHERE thread_id={}".format(str(thread_id)))
     threadsSQL = cur.fetchall()
     if threadsSQL == []:
         response = make_response("ERROR: THREAD NOT FOUND")
         response.status_code = 404
-        return reponse
+        return response
         
     cur.execute("SELECT * FROM posts WHERE forum_id={} AND thread_id={}".format(str(forum_id), str(thread_id)))
     postsSQL = cur.fetchall()
@@ -88,6 +88,7 @@ def get_posts(forum_id, thread_id):
 
 # ********************************************************************
 @app.route('/forums', methods=['POST'])
+@basic_auth.required
 def add_forum():
     connectDB()
     requestJSON = request.get_json(force=True)
@@ -109,6 +110,7 @@ def add_forum():
 
 # ********************************************************************
 @app.route('/forums<int:forum_id>', methods=['POST'])
+@basic_auth.required
 def add_thread(forum_id):
     requestJSON = request.get_json(force=True)
     currentTime = str(datetime.datetime.now())
@@ -118,7 +120,7 @@ def add_thread(forum_id):
     if forumsSQL == []:
         response = make_response("ERROR: FORUM NOT FOUND")
         response.status_code = 404
-        return reponse
+        return response
     cur.execute("INSERT INTO threads(forum_id, thread_creator, thread_title, thread_time) VALUES (?,?,?,?)",(forum_id, "marek.sautter", requestJSON['title'], currentTime))
     conn.commit()
     cur.execute("INSERT INTO posts(forum_id, post_creator, post_text, post_time) VALUES (?,?,?,?)",(forum_id, "marek.sautter", requestJSON['text'], currentTime))
@@ -134,6 +136,7 @@ def add_thread(forum_id):
 
 # ********************************************************************
 @app.route('/forums<int:forum_id>/<int:thread_id>', methods=['POST'])
+@basic_auth.required
 def add_post(forum_id, thread_id):
     requestJSON = request.get_json(force=True)
     currentTime = str(datetime.datetime.now())
@@ -147,7 +150,7 @@ def add_post(forum_id, thread_id):
     cur.execute("SELECT * FROM threads WHERE thread_id={}".format(str(thread_id)))
     threadsSQL = cur.fetchall()
     if threadsSQL == []:
-        response = make_response("ERROR: FORUM NOT FOUND")
+        response = make_response("ERROR: THREAD NOT FOUND")
         response.status_code = 404
         return response
 
@@ -186,6 +189,7 @@ def add_user():
 
 # ********************************************************************
 @app.route('/users', methods=['PUT'])
+@basic_auth.required
 def change_password():
     requestJson = request.get_json(force=True)
     username = requestJson['username']

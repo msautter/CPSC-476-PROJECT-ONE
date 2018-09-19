@@ -22,6 +22,19 @@ def connectDB():
         print("SUCCESS: USER CONNECTED TO DATABASE")
     except:
         return "ERROR: DATABASE OFFLINE"
+
+def checkUser(user_name, pass_word):
+    print("USER: {} \n PASSWORD: {}".format(user_name, pass_word))
+    cur.execute("SELECT * FROM users WHERE users_name='{}'".format(str(user_name)))
+    if user_name == '' or pass_word == '':
+        return {"result": False, "message": "NO LOGIN: PLEASE USE http://username:password@127.0.0.1:5000/"}
+    user = cur.fetchone()
+    if user == []:
+        return {"result": False, "message": "USERNAME INCORRECT: PLEASE USE http://username:password@127.0.0.1:5000/"}
+    if user[1] != pass_word:
+        return {"result": False, "message": "PASSWORD INCORRECT: PLEASE USE http://username:password@127.0.0.1:5000/"}
+    return {"result" : True, "message" : "SUCCESS"}
+            
     
 # ********************************************************************
 @app.route('/forums', methods=['GET'])
@@ -85,20 +98,20 @@ def get_posts(forum_id, thread_id):
     return response
 # ********************************************************************
 
-
 # ********************************************************************
 @app.route('/forums', methods=['POST'])
-@basic_auth.required
 def add_forum():
     connectDB()
+    login = checkUser(request.authorization.username, request.authorization.password)
+    if not login['result']: return login["message"]
     requestJSON = request.get_json(force=True)
-    cur.execute("SELECT * FROM forums WHERE forum_name='"+str(requestJSON['name'])+"'")
+    cur.execute("SELECT * FROM forums WHERE forum_name='{}'".format(str(requestJSON['name'])))
     forumsSQL = cur.fetchall()
     if forumsSQL != []:
             response = make_response("ERROR: FORUM ALREADY EXISTS")
             response.status_code = 409
             return response
-    cur.execute("INSERT INTO forums(forum_name,forum_creator) VALUES (?,?,?)",(str(requestJSON['name']), "marek.sautter", str(datetime.datetime.now())))
+    cur.execute("INSERT INTO forums(forum_name,forum_creator) VALUES (?,?,?)",(str(requestJSON['name']), str(request.authorization.username), str(datetime.datetime.now())))
     conn.commit()
     cur.execute("SELECT * FROM forums WHERE forum_name={}".format(str(requestJSON['name'])))
     newForum = cur.fetchone()
@@ -110,20 +123,21 @@ def add_forum():
 
 # ********************************************************************
 @app.route('/forums<int:forum_id>', methods=['POST'])
-@basic_auth.required
 def add_thread(forum_id):
     requestJSON = request.get_json(force=True)
     currentTime = str(datetime.datetime.now())
     connectDB()
+    login = checkUser(request.authorization.username, request.authorization.password)
+    if not login['result']: return login["message"]
     cur.execute("SELECT * FROM forums WHERE forum_id={}".format(str(forum_id)))
     forumsSQL = cur.fetchall()
     if forumsSQL == []:
         response = make_response("ERROR: FORUM NOT FOUND")
         response.status_code = 404
         return response
-    cur.execute("INSERT INTO threads(forum_id, thread_creator, thread_title, thread_time) VALUES (?,?,?,?)",(forum_id, "marek.sautter", requestJSON['title'], currentTime))
+    cur.execute("INSERT INTO threads(forum_id, thread_creator, thread_title, thread_time) VALUES (?,?,?,?)",(forum_id, str(request.authorization.username), requestJSON['title'], currentTime))
     conn.commit()
-    cur.execute("INSERT INTO posts(forum_id, post_creator, post_text, post_time) VALUES (?,?,?,?)",(forum_id, "marek.sautter", requestJSON['text'], currentTime))
+    cur.execute("INSERT INTO posts(forum_id, post_creator, post_text, post_time) VALUES (?,?,?,?)",(forum_id, str(request.authorization.username), requestJSON['text'], currentTime))
     cur.commit()
 
     cur.execute("SELECT * FROM threads WHERE thread_name={}".format(str(requestJSON['title'])))
@@ -136,11 +150,12 @@ def add_thread(forum_id):
 
 # ********************************************************************
 @app.route('/forums<int:forum_id>/<int:thread_id>', methods=['POST'])
-@basic_auth.required
 def add_post(forum_id, thread_id):
     requestJSON = request.get_json(force=True)
     currentTime = str(datetime.datetime.now())
     connectDB()
+    login = checkUser(request.authorization.username, request.authorization.password)
+    if not login['result']: return login["message"]
     cur.execute("SELECT * FROM forums WHERE forum_id={}".format(str(forum_id)))
     forumsSQL = cur.fetchall()
     if forumsSQL == []:
@@ -154,7 +169,7 @@ def add_post(forum_id, thread_id):
         response.status_code = 404
         return response
 
-    cur.execute("INSERT INTO posts(forum_id, thread_id, post_creator, post_time) VALUES (?,?,?,?,?)",(forum_id, thread_id, "marek.sautter", requestJSON['text'], currentTime))
+    cur.execute("INSERT INTO posts(forum_id, thread_id, post_creator, post_time) VALUES (?,?,?,?,?)",(forum_id, thread_id, str(request.authorization.username), requestJSON['text'], currentTime))
     conn.commit()
     cur.execute("SELECT * FROM posts WHERE post_name={} AND post_time={}".format(str(requestJSON['text']), str(currentTime)))
     newThread = cur.fetchone()
@@ -169,9 +184,9 @@ def add_post(forum_id, thread_id):
 # ********************************************************************
 @app.route('/users', methods=['POST'])
 def add_user():
-    requestJson = request.get_json(force=True)
-    username = requestJson['username']
-    password = requestJson['password']
+    requestJSON = request.get_json(force=True)
+    username = requestJSON['username']
+    password = requestJSON['password']
     connectDB()
     cur.execute("SELECT * FROM users WHERE users_name={}",(str(username)))
     user = cur.fetchall()
@@ -189,12 +204,15 @@ def add_user():
 
 # ********************************************************************
 @app.route('/users', methods=['PUT'])
-@basic_auth.required
 def change_password():
-    requestJson = request.get_json(force=True)
-    username = requestJson['username']
-    password = requestJson['password']
+    requestJSON = request.get_json(force=True)
+    username = requestJSON['username']
+    password = requestJSON['password']
+    if requestJSON['username'] != request.authorization.username:
+        return "Username does not match"
     connectDB()
+    login = checkUser(request.authorization.username, request.authorization.password)
+    if not login['result']: return login["message"]
     cur.execute("SELECT * FROM users WHERE users_name = '{}'".format(username))
     user = cur.fetchall()
     if user == []:

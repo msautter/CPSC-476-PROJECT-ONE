@@ -7,7 +7,10 @@ The sample database is populated with televangelists discussing their opinions o
 
 ---
 ## 1) GET ALL FORUMS    
-**API_CALL:** curl http://127.0.0.1:5000/forums  
+**API_CALL:** 
+```
+curl http://127.0.0.1:5000/forums  
+```
 **RESPONSE:** 
 ```  
 [
@@ -111,7 +114,7 @@ curl http://127.0.0.1:5000/forums/1/1
 ## 6) POST POST TO THREAD
 **API_CALL:**   
 ```
-curl -d '{"text": "I actually love Python adn you should too!"}' -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/forums/1/1
+curl -d '{"text": "I actually love Python and you should too!"}' -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/forums/1/1
 ```
 **RESPONSE:**   N/A  
 **SUC_CODE:**   201 CREATED  

@@ -1,19 +1,24 @@
+# NAME: Marek Sautter
+# PROF: Kenytt Avery
+# CLSS: CPSC 476
+# DATE: 26 September
+# PROJ: 1 - Flask Forum API
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+import json, sqlite3, sys
 from flask import Flask, jsonify, request, make_response
 from flask.cli import AppGroup
 from flask_basicauth import BasicAuth
-import json
-import sqlite3
 from datetime import datetime
-import sys
-# sqlite3 database.db < init.sql
+
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
 basic_auth = BasicAuth(app)
 databaseName = 'database.db'
 
 # HELPER FUNCTIONS --------------------------------------------------
-@app.cli.command('init_db')
-def init_db():
+@app.cli.command('init_db')     
+def init_db():  # Creates the database with the given init.sql file                         
     try:
         conn = sqlite3.connect(databaseName)
         with app.open_resource('init.sql', mode='r') as f:
@@ -25,7 +30,7 @@ def init_db():
         sys.exit()
 app.cli.add_command(init_db)
 
-def connectDB(dbName):
+def connectDB(dbName):  # Connects to the dbase and returns the conn
     try:
         conn = sqlite3.connect(dbName)
         print("SUCCESS: CONNECTED TO {}".format(str(dbName)))
@@ -34,7 +39,7 @@ def connectDB(dbName):
         print("ERROR: {} OFFLINE".format(str(dbName)))
         sys.exit()
 
-def checkUser(cur, user_name, pass_word):
+def checkUser(cur, user_name, pass_word):   #Checks username and password
     if user_name == '' or pass_word == '':
         return False
     cur.execute("SELECT * FROM Users WHERE username='{}'".format(str(user_name)))
@@ -46,7 +51,7 @@ def checkUser(cur, user_name, pass_word):
         return True
     return False
 
-def fixDate(my_date):
+def fixDate(my_date):   #Genreates the correct date format for the displaying
     new_date = datetime.strptime(my_date,'%Y-%m-%d %H:%M:%S.%f')
     return new_date.strftime('%a, %d %b %Y %H:%M:%S GMT')
 
@@ -54,6 +59,17 @@ def createDate():
     new_date = datetime.now()
     return new_date.strftime('%a, %d %b %Y %H:%M:%S GMT')
 
+def checkExists(cur, forum_id, thread_id):
+    cur.execute("SELECT * FROM forums WHERE forum_id='{}'".format(str(forum_id)))
+    forumsSQL = cur.fetchall()
+    if forumsSQL == []:
+        return False
+    if thread_id != '0':
+        cur.execute("SELECT * FROM threads WHERE thread_id='{}'".format(str(thread_id)))
+        threadsSQL = cur.fetchall()
+        if threadsSQL == []:
+            return False
+    return True
 # HELPER FUNCTIONS ---------------------------------------------------
 
 # DONE ---------------------------------------------------------- DONE        
@@ -65,10 +81,12 @@ def get_forums():
     responseJSON = []
     cur.execute("SELECT * FROM forums")
     forumsSQL = cur.fetchall()
-    if forumsSQL == []:
-        return jsonify(forumsSQL)
+    if forumsSQL == []: # If there are no forums, return []
+        conn.close()
+        return make_response(jsonify(forumsSQL), 200)
     for forum in forumsSQL:
-        responseJSON.append({'id': forum[0], 'name': forum[1], 'creator': forum[2]})    
+        responseJSON.append({'id': forum[0], 'name': forum[1], 'creator': forum[2]}) 
+    conn.close()   
     return make_response(jsonify(responseJSON), 200)
 # ********************************************************************
 # DONE ---------------------------------------------------------- DONE     
@@ -90,8 +108,6 @@ def get_threads(forum_id):
         cur.execute("SELECT * FROM posts WHERE forum_id='{}' AND thread_id ='{}'".format( str(forum_id), str(post[1])))
         postsSQL = cur.fetchall()
         print(postsSQL)
-    # print(str(threadsSQL))
-    # print(str(postsSQL))
     if threadsSQL == []:
         return make_response("NOT FOUND", 404)
     for thread in threadsSQL:
@@ -109,21 +125,27 @@ def get_posts(forum_id, thread_id):
     conn = connectDB(databaseName)
     cur = conn.cursor()
     responseJSON = []
+
+    # DUMB WAY OF CHECKING TO MAKE SURE THE THREAD/FORUM EXISTS
     cur.execute("SELECT * FROM forums WHERE forum_id={}".format(str(forum_id)))
     forumsSQL = cur.fetchall()
     if forumsSQL == []:
+        conn.close()
         return make_response("NOT FOUND", 404)
     cur.execute("SELECT * FROM threads WHERE thread_id={}".format(str(thread_id)))
     threadsSQL = cur.fetchall()
     if threadsSQL == []:
+        conn.close()
         return make_response("NOT FOUND", 404)
-        
     cur.execute("SELECT * FROM posts WHERE forum_id={} AND thread_id={}".format(str(forum_id), str(thread_id)))
     postsSQL = cur.fetchall()
+    if postsSQL == []:
+        return make_response(jsonify(postsSQL), 200)
     for post in postsSQL:
         responseJSON.append({'author': post[3], 'text': post[4], 'timestamp': fixDate(post[5])})
     # newlist = sorted(responseJSON, key=lambda k: k['timestamp'], reverse=True) 
     # print(newlist)
+    conn.close()
     return make_response(jsonify(responseJSON), 200)
 # ********************************************************************
 # DONE  --------------------------------------------------------  DONE
@@ -144,12 +166,15 @@ def add_forum():
         cur.execute("SELECT * FROM forums WHERE forum_title='{}'".format(str(requestJSON['name'])))
         forumsSQL = cur.fetchall()
         if forumsSQL != []:
+            conn.close()
             return make_response("FORUM ALREADY EXISTS", 409)
         cur.execute("INSERT INTO forums(forum_title,creator) VALUES (?,?)",(str(requestJSON['name']), str(auth.username)))
         conn.commit()
         cur.execute("SELECT * FROM forums WHERE forum_title='{}'".format(str(requestJSON['name'])))
         newForum = cur.fetchone()
+        conn.close()
         return make_response("SUCCESS: FORUM CREATED", 201, {"location" : '/forums/' + str(newForum[0])})
+    conn.close()
     return "ERROR: UNSUCCESSFUL LOGIN"
 # ********************************************************************
 # DONE  --------------------------------------------------------  DONE
@@ -171,6 +196,7 @@ def add_thread(forum_id):
         cur.execute("SELECT * FROM forums WHERE forum_id={}".format(str(forum_id)))
         forumsSQL = cur.fetchall()
         if forumsSQL == []:
+            conn.close()
             return make_response("NOT FOUND", 404)
         cur.execute("INSERT INTO threads(forum_id, creator, thread_title, thread_text, thread_time) VALUES (?,?,?,?,?)",(forum_id, str(auth.username), requestJSON['title'], requestJSON['text'], currentTime))
         conn.commit()
@@ -178,9 +204,10 @@ def add_thread(forum_id):
         newThread = cur.fetchone()
         cur.execute("INSERT INTO posts(forum_id, thread_id, author, post_text, post_time) VALUES (?,?,?,?,?)",(forum_id, str(newThread[1]), str(auth.username), requestJSON['text'], currentTime))
         conn.commit()
+        conn.close()
         return make_response("SUCCESS: THREAD CREATED", 201, {"location" : '/forums/{}/{}'.format(str(newThread[0]), str(newThread[1]))})
-    else:
-        return make_response("ERROR: LOGIN UNSUCCESSFUL")
+    conn.close()
+    return make_response("ERROR: LOGIN UNSUCCESSFUL")
 # ********************************************************************
 # DONE  --------------------------------------------------------  DONE
 
@@ -201,16 +228,19 @@ def add_post(forum_id, thread_id):
         cur.execute("SELECT * FROM forums WHERE forum_id='{}'".format(str(forum_id)))
         forumsSQL = cur.fetchall()
         if forumsSQL == []:
+            conn.close()
             return make_response("NOT FOUND", 404)
         cur.execute("SELECT * FROM threads WHERE thread_id='{}'".format(str(thread_id)))
         threadsSQL = cur.fetchall()
         if threadsSQL == []:
-            return make_response(" FOUND", 404)
+            conn.close()
+            return make_response("NOT FOUND", 404)
         cur.execute("INSERT INTO posts(forum_id, thread_id, author, post_text, post_time) VALUES (?,?,?,?,?)",(forum_id, thread_id, str(auth.username), requestJSON['text'], currentTime))
         conn.commit()
+        conn.close()
         return make_response("SUCCESS: POST CREATED", 201)
-    else:
-        return make_response("ERROR: LOGIN UNSUCCESSFUL")
+    conn.close()
+    return make_response("ERROR: LOGIN UNSUCCESSFUL")
 # ********************************************************************
 # DONE  --------------------------------------------------------  DONE
 

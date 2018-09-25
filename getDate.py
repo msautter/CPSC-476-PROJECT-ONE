@@ -1,10 +1,26 @@
-from datetime import datetime
+import sqlite3
+dbName = 'database.db'
 
+def checkExists(cur, forum_id, thread_id):
+    cur.execute("SELECT * FROM forums WHERE forum_id='{}'".format(str(forum_id)))
+    forumsSQL = cur.fetchall()
+    if forumsSQL == []:
+        return False
+    if thread_id != '0':
+        cur.execute("SELECT * FROM threads WHERE thread_id='{}'".format(str(thread_id)))
+        threadsSQL = cur.fetchall()
+        if threadsSQL == []:
+            return False
+    return True
 
-def readDate_FromDB(my_date):
-    new_date = datetime.strptime(my_date,'%Y-%m-%d %H:%M:%S.%f')
-    printDate(new_date)
+ 
 
-def createDate_fromNOW(my_date):
-    print(my_date.strftime('%a, %d %b %Y %H:%M:%S GMT'))
-fixDate('2018-09-24 14:32:17.075185')
+try:
+    conn = sqlite3.connect(dbName)
+    print("SUCCESS: CONNECTED TO {}".format(str(dbName)))
+except:
+    print("ERROR: {} OFFLINE".format(str(dbName)))
+
+cur = conn.cursor()
+
+print(str(checkExists(cur, 2, 10)))

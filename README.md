@@ -1,5 +1,4 @@
-# CPSC-476-PROJECT-ONE
-
+# Forum API
 This is a simple forum built using python and flask. It relies on API calls and has no front end (for now).
 
 The sample database is populated with televangelists discussing their opinions on modern programming languages.
